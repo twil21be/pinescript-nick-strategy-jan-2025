@@ -1,0 +1,280 @@
+//@version=5
+strategy("Bitcoin Vlad-Nik Trading Strategy - 2025 jan", overlay=true, default_qty_type=strategy.cash, default_qty_value=2000, initial_capital=3000,  max_lines_count = 500, calc_on_every_tick=true)
+
+//liquidity channels Tfo 
+
+LiquidityChannelsGroup = "Liquidity Channels"
+
+
+bsl_color = input.color(color.teal, "Liquidity Colors", tooltip = "Liquidity level colors for highs and lows, respectively", inline = "COLOR")
+ssl_color = input.color(color.red, "", inline = "COLOR")
+
+
+ps = input.int(15, "Liquidity Strength", group=LiquidityChannelsGroup, tooltip = "Valid highs must be greater than this many bars to the left and right of it, and vice versa for lows")
+exag = input.int(5, "Channel Growth", 1, 10,  group=LiquidityChannelsGroup, tooltip = "Larger values will show greater growth for liquidity levels")
+
+del_untouched = input.bool(true, "Delete After (Bars)", inline = "DELETE", group=LiquidityChannelsGroup, tooltip = "Delete untouched liquidity levels that were never traded through")
+del_after = input.int(1000, "", 0, inline = "DELETE", group=LiquidityChannelsGroup, tooltip = "Delete untouched liquidity levels after this many bars")
+hide_channel = input.bool(false, "Hide Expanding Channels", group=LiquidityChannelsGroup, tooltip = "Hide the channels that expand over time")
+line_style = input.string('Solid', 'Line Style', options = ['Solid','Dashed','Dotted'], inline = "LINE")
+line_width = input.int(1, '', inline = "LINE")
+
+atr_liq = ta.atr(100) / 1000
+
+var style = switch line_style
+    'Solid' => line.style_solid
+    'Dashed' => line.style_dashed
+    'Dotted' => line.style_dotted
+
+type liq
+    float[] price
+    int[] idx
+    line[] diag
+    line[] hrz
+
+var BSL = liq.new(array.new_float(), array.new_int(), array.new_line(), array.new_line())
+var SSL = liq.new(array.new_float(), array.new_int(), array.new_line(), array.new_line())
+
+method add_liq(liq L, float P, int I, bool BULL) =>
+    L.price.unshift(P)
+    L.idx.unshift(I)
+
+    col = BULL ? bsl_color : ssl_color
+    L.hrz.unshift(line.new(I, P, bar_index, P, color = col, style = style, width = line_width))
+
+    if not hide_channel
+        y2 = P + (BULL ? 1 : -1)*(bar_index - I)*atr_liq*exag
+        L.diag.unshift(line.new(I, P, bar_index, y2, color = col, style = style, width = line_width))
+        linefill.new(L.diag.get(0), L.hrz.get(0), color.new(col, 70))
+
+method del_liq(liq L, int i, bool B) =>
+    line D = na
+
+    L.price.remove(i)
+    L.idx.remove(i)
+
+    if not hide_channel
+        D := L.diag.remove(i)
+    H = L.hrz.remove(i)
+
+    if del_untouched ? B : false
+        if not hide_channel
+            D.delete()
+        H.delete()
+
+method update_liq(liq L, bool BULL) =>
+    if L.price.size() > 0
+        for i = L.price.size() - 1 to 0
+            L.hrz.get(i).set_x2(bar_index)
+            
+            I = L.idx.get(i)
+            P = L.price.get(i)
+            if not hide_channel
+                y2 = P + (BULL ? 1 : -1)*(bar_index - I)*atr_liq*exag
+                L.diag.get(i).set_xy2(bar_index, y2)
+
+            old = (bar_index - I >= del_after)
+            if old or (BULL ? high > P : low < P)
+                L.del_liq(i, old)
+
+piv_hi = not na(ta.pivothigh(ps, ps))
+piv_lo = not na(ta.pivotlow(ps, ps))
+
+if piv_hi
+    BSL.add_liq(high[ps], bar_index[ps], true)
+if piv_lo
+    SSL.add_liq(low[ps], bar_index[ps], false)
+
+BSL.update_liq(true)
+SSL.update_liq(false)
+
+
+//////////////////////////////////========================
+
+impulseGroupTwi = "twil Strategy"
+TakeProfitRR = input.float(3.0, title="Take Profit Risk-Reward Multiplier", step=0.1, group=impulseGroupTwi, tooltip="Sets the Take Profit level as a multiple of the Stop Loss. E.g., 3 means TP is 3 times the Stop Loss distance.")
+RiskToTake = input(50, title="Risk to Take (USD)", group=impulseGroupTwi, tooltip="Sets the dollar amount of risk you want to take per trade")
+
+MichaelsEmaGroup = "Michael's EMA"
+
+// Input options for EMAs
+emaS_value = input.int(24, minval=1, title="Small EMA", inline="EMA Settings", group=MichaelsEmaGroup)
+emaB_value = input.int(42, minval=1, title="Big EMA", inline="EMA Settings", group=MichaelsEmaGroup)
+isM_EmaShown = input.bool(true, title="Afișează EMA", inline="EMA Settings", group=MichaelsEmaGroup)
+
+// Input pentru culori (cu inline pentru a le pune pe aceeași linie)
+EMA_UpTrend_color = input(color.green, title="UpTrend Color", inline="EMA Colors", group=MichaelsEmaGroup)
+EMA_DownTrend_color = input(#ff0000, title="DownTrend Color", inline="EMA Colors", group=MichaelsEmaGroup)
+
+// Calculăm valorile EMA
+emaS = ta.ema(close, emaS_value)
+emaB = ta.ema(close, emaB_value)
+
+// Reguli pentru trendul EMA Up și Down
+EMA_UpTrend = emaS >= emaB
+EMA_DownTrend = emaS < emaB
+
+// Determinăm culoarea condiționată de trend și de bifă
+color_emaS = isM_EmaShown ? (EMA_UpTrend ? EMA_UpTrend_color : EMA_DownTrend_color) : na
+color_emaB = isM_EmaShown ? (EMA_UpTrend ? EMA_UpTrend_color : EMA_DownTrend_color) : na
+
+// Plot EMAs pe grafic, controlând vizibilitatea prin culoarea `na`
+plot(emaS, color=color_emaS, title="EMA Small", style=plot.style_line, linewidth=1)
+plot(emaB, color=color_emaB, title="EMA Big", style=plot.style_line, linewidth=2)
+
+
+
+emaBullish = EMA_UpTrend and close > emaS
+emaBearish = EMA_DownTrend and close < emaS
+
+
+ATRScaledGroup = "ATR Scaled"
+
+// ATR Scaled Indicator (Adapted from your provided script)
+atrLength = input.int(96, minval=1, title="Length", inline="ATR Settings", group=ATRScaledGroup)
+atr = ta.atr(atrLength)
+change = ta.change(atr)
+up = ta.rma(math.max(change, 0), atrLength)
+down = ta.rma(-math.min(change, 0), atrLength)
+atrScaled = down == 0 ? 100 : up == 0 ? 0 : 100 - (100 / (1 + up / down))
+
+
+
+// Supertrend Calculation
+
+SuperTrendGroup = "SuperTrend Group"
+
+factor = input.float(3.0, title="Factor", minval=0.1, step=0.1, group=SuperTrendGroup)
+supertrendAtrLength = input.int(96, title="Supertrend ATR Length", minval=1, group=SuperTrendGroup)
+[supertrend, direction] = ta.supertrend(factor, supertrendAtrLength)
+
+// Plot Supertrend
+//plot(supertrend, color=direction < 0 ? #2ffa7d : color.rgb(253, 111, 92), title="Supertrend")
+plot(supertrend, color=direction < 0 ? #2ffa7d : color.rgb(253, 111, 92), title="Supertrend", style=plot.style_circles)
+
+
+// Entry Conditions
+longCondition = atrScaled > 50 and emaBullish and direction < 0
+shortCondition = atrScaled > 50 and emaBearish and direction > 0
+
+// Trade condition flags - doar la prima intrare in conditie sa trade-uiasca
+//var bool longActive = false
+//var bool shortActive = false
+
+
+
+// Stop Loss and Take Profit
+riskReward = 3.0
+longSL = supertrend
+shortSL = supertrend
+
+// Declare longTP and shortTP as float
+var float longTP = na
+var float shortTP = na
+var float risk = na
+
+
+var float closest_level = na
+
+if (longCondition and strategy.opentrades == 0)// and not longActive)
+    entryPrice = close
+    risk = entryPrice - longSL
+
+    // Găsirea celui mai apropiat nivel de lichiditate valid pentru long
+    closest_level := na
+    if (BSL.price.size() > 0)  // Verifică dacă array-ul BSL.price are elemente
+        for i = 0 to BSL.price.size() - 1
+            if BSL.price.get(i) > entryPrice // Verifică dacă nivelul este mai mare decât prețul de intrare
+                if na(closest_level) or math.abs(BSL.price.get(i) - entryPrice) < math.abs(closest_level - entryPrice)
+                    closest_level := BSL.price.get(i)
+    
+    // Comparăm TP-ul standard cu cel mai apropiat nivel de lichiditate pentru Long
+    //finalLongTP = na(closest_level) ? entryPrice + risk * riskReward : (closest_level > entryPrice ? closest_level : entryPrice + risk * riskReward)
+    finalLongTP = na(closest_level) ? entryPrice + risk * riskReward : (closest_level > entryPrice ? math.min(closest_level, entryPrice + risk * riskReward) : entryPrice + risk * riskReward)
+
+
+    longTP := finalLongTP
+
+    if ((longTP - entryPrice) / risk >= 2)
+        strategy.entry("Long", strategy.long, qty = risk / (longTP - longSL))
+        alert("BUY signal triggered for " + syminfo.tickerid, alert.freq_once_per_bar)
+        strategy.exit("Take Profit", from_entry="Long", limit=longTP, stop=longSL)
+        label.new(bar_index, close, "BUY", color=color.green, style=label.style_label_down)
+
+        // Desenare linie și etichetă pentru Stop Loss (Long)
+        line.new(x1=bar_index, y1=longSL, x2=bar_index + 10, y2=longSL, color=#ff0000, width=1)
+        label.new(x=bar_index + 10, y=longSL, text="SL: " + str.tostring(longSL, "#.####") + "; Position: " + str.tostring(RiskToTake/(longTP-longSL)), style=label.style_label_up, color=color.white, textcolor=#ff0000)
+
+        // Desenare linie și etichetă pentru Take Profit (Long)
+        line.new(x1=bar_index, y1=longTP, x2=bar_index + 10, y2=longTP, color=color.green, width=1)
+        label.new(x=bar_index + 2, y=longTP, text="TP: " + str.tostring(longTP, "#.##"), style=label.style_label_down, color=color.white, textcolor=color.green)
+    
+    //longActive := true
+
+if (shortCondition and strategy.opentrades == 0)// and not shortActive)
+    entryPrice = close
+    risk = shortSL - entryPrice
+
+    // Găsirea celui mai apropiat nivel de lichiditate valid pentru short
+    closest_level := na
+    if (SSL.price.size() > 0)  // Verifică dacă array-ul SSL.price are elemente
+        for i = 0 to SSL.price.size() - 1
+            if SSL.price.get(i) < entryPrice // Verifică dacă nivelul este mai mic decât prețul de intrare
+                if na(closest_level) or math.abs(SSL.price.get(i) - entryPrice) < math.abs(closest_level - entryPrice)
+                    closest_level := SSL.price.get(i)
+    
+    // Comparăm TP-ul standard cu cel mai apropiat nivel de lichiditate pentru Short
+    //finalShortTP = na(closest_level) ? entryPrice - risk * riskReward : (closest_level < entryPrice ? closest_level : entryPrice - risk * riskReward)
+    finalShortTP = na(closest_level) ? entryPrice - risk * riskReward : (closest_level < entryPrice ? math.max(closest_level, entryPrice - risk * riskReward) : entryPrice - risk * riskReward)
+
+
+    shortTP := finalShortTP
+
+    if ((entryPrice - shortTP) / risk >= 2)
+        strategy.entry("Short", strategy.short, qty = risk / (shortSL - shortTP))
+        alert("SELL signal triggered for " + syminfo.tickerid, alert.freq_once_per_bar)
+        strategy.exit("Take Profit", from_entry="Short", limit=shortTP, stop=shortSL)
+        label.new(bar_index, close, "SELL", color=color.red, style=label.style_label_up)
+
+        // Desenare linie și etichetă pentru Stop Loss (Short)
+        line.new(x1=bar_index, y1=shortSL, x2=bar_index + 10, y2=shortSL, color=#ff0000, width=1)
+        label.new(x=bar_index + 6, y=shortSL, text="SL: " + str.tostring(shortSL, "#.####") + "; Position: " + str.tostring(RiskToTake/(shortSL-shortTP)), style=label.style_label_down, color=color.white, textcolor=#ff0000)
+
+        // Desenare linie și etichetă pentru Take Profit (Short)
+        line.new(x1=bar_index, y1=shortTP, x2=bar_index + 10, y2=shortTP, color=color.green, width=1)
+        label.new(x=bar_index + 2, y=shortTP, text="TP: " + str.tostring(shortTP, "#.##"), style=label.style_label_up, color=color.white, textcolor=color.green)
+
+    //shortActive := true
+
+
+
+
+
+// Devalidation conditions
+//if (not emaBullish or direction >= 0 or atrScaled < 50)
+    //longActive := false
+
+//if (not emaBearish or direction <= 0 or atrScaled < 50)
+    //shortActive := false
+
+
+
+plot(close[0], title="Close[0]", display=display.data_window)
+plot(risk, title="Risk", display=display.data_window)
+plot(longTP, title="longTP", display=display.data_window)
+plot(longSL, title="longSL", display=display.data_window)
+plot(risk, title="Risk", display=display.data_window)
+plot(shortTP, title="shortTP", display=display.data_window)
+plot(shortSL, title="shortSL", display=display.data_window)
+plot(closest_level, title="closest_level", display=display.data_window)
+
+
+// Transformăm variabila booleană într-o valoare numerică
+numericBoolVariable1 = longCondition ? 1 : 0
+// Afișăm variabila numerică în Data Window
+plot(numericBoolVariable1, title="longCondition (1=TRUE, 0=FALSE)", display=display.data_window)
+
+// Transformăm variabila booleană într-o valoare numerică
+numericBoolVariable2 = shortCondition ? 1 : 0
+// Afișăm variabila numerică în Data Window
+plot(numericBoolVariable2, title="shortCondition (1=TRUE, 0=FALSE)", display=display.data_window)
