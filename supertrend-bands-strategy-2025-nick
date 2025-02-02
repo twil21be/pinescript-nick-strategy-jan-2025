@@ -1,5 +1,5 @@
 //@version=5
-strategy("Bitcoin Vlad-Nik Trading Strategy - 2025 jan", overlay=true, default_qty_type=strategy.cash, default_qty_value=2000, initial_capital=3000,  max_lines_count = 500, calc_on_every_tick=true)
+strategy("Bitcoin NickSevers Trading Strategy - 2025 jan", overlay=true, default_qty_type=strategy.cash, default_qty_value=2000, initial_capital=3000,  max_lines_count = 500, calc_on_every_tick=true)
 
 //liquidity channels Tfo 
 
