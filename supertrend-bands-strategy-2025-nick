@@ -1,5 +1,17 @@
 //@version=5
-strategy("Bitcoin Vlad-Nik Trading Strategy - 2025 jan", overlay=true, default_qty_type=strategy.cash, default_qty_value=2000, initial_capital=3000,  max_lines_count = 500, calc_on_every_tick=true)
+strategy("Bitcoin Twi-Nik Trading Strategy - 2025 jan", overlay=true, default_qty_type=strategy.cash, default_qty_value=2000, initial_capital=3000,  max_lines_count = 500, calc_on_every_tick=true)
+
+//explanation of code:
+//This trading strategy is based on a combination of Supertrend, EMA crossovers, and ATR conditions:
+//EMA Conditions:
+//A bullish (long) signal is generated when the 24-period EMA (small EMA) is above the 42-period EMA (big EMA), and the closing price is above the small EMA.
+//A bearish (short) signal is generated when the 24-period EMA is below the 42-period EMA, and the closing price is below the small EMA.
+//Supertrend Conditions:
+//For a long position, the Supertrend must indicate a bullish trend (Supertrend direction is below the price).
+//For a short position, the Supertrend must indicate a bearish trend (Supertrend direction is above the price).
+//ATR Scaled Condition:
+//The ATR Scaled indicator must be above 50 to confirm sufficient volatility before entering any trade.
+//All these conditions must align for a trade to be executed. The strategy then sets a dynamic Stop-Loss (based on the Supertrend) and calculates the Take-Profit based on a risk-reward ratio, adjusted for nearby liquidity levels.
 
 //liquidity channels Tfo 
 
