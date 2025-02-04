@@ -1,5 +1,5 @@
 //@version=5
-strategy("Bitcoin NickSevers Trading Strategy - 2025 jan", overlay=true, default_qty_type=strategy.cash, default_qty_value=2000, initial_capital=3000,  max_lines_count = 500, calc_on_every_tick=true)
+strategy("Bitcoin Vlad-Nik Trading Strategy - 2025 jan", overlay=true, default_qty_type=strategy.cash, default_qty_value=2000, initial_capital=3000,  max_lines_count = 500, calc_on_every_tick=true)
 
 //liquidity channels Tfo 
 
@@ -196,11 +196,6 @@ if (longCondition and strategy.opentrades == 0)// and not longActive)
     longTP := finalLongTP
 
     if ((longTP - entryPrice) / risk >= 2)
-        strategy.entry("Long", strategy.long, qty = risk / (longTP - longSL))
-        alert("BUY signal triggered for " + syminfo.tickerid, alert.freq_once_per_bar)
-        strategy.exit("Take Profit", from_entry="Long", limit=longTP, stop=longSL)
-        label.new(bar_index, close, "BUY", color=color.green, style=label.style_label_down)
-
         // Desenare linie și etichetă pentru Stop Loss (Long)
         line.new(x1=bar_index, y1=longSL, x2=bar_index + 10, y2=longSL, color=#ff0000, width=1)
         label.new(x=bar_index + 10, y=longSL, text="SL: " + str.tostring(longSL, "#.####") + "; Position: " + str.tostring(RiskToTake/(longTP-longSL)), style=label.style_label_up, color=color.white, textcolor=#ff0000)
@@ -208,6 +203,12 @@ if (longCondition and strategy.opentrades == 0)// and not longActive)
         // Desenare linie și etichetă pentru Take Profit (Long)
         line.new(x1=bar_index, y1=longTP, x2=bar_index + 10, y2=longTP, color=color.green, width=1)
         label.new(x=bar_index + 2, y=longTP, text="TP: " + str.tostring(longTP, "#.##"), style=label.style_label_down, color=color.white, textcolor=color.green)
+
+        strategy.entry("Long", strategy.long, qty = risk / (longTP - longSL))
+        alert("BUY signal triggered for " + syminfo.tickerid, alert.freq_once_per_bar)
+        strategy.exit("Take Profit", from_entry="Long", limit=longTP, stop=longSL)
+        label.new(bar_index, close, "BUY", color=color.green, style=label.style_label_down)
+
     
     //longActive := true
 
@@ -231,11 +232,6 @@ if (shortCondition and strategy.opentrades == 0)// and not shortActive)
     shortTP := finalShortTP
 
     if ((entryPrice - shortTP) / risk >= 2)
-        strategy.entry("Short", strategy.short, qty = risk / (shortSL - shortTP))
-        alert("SELL signal triggered for " + syminfo.tickerid, alert.freq_once_per_bar)
-        strategy.exit("Take Profit", from_entry="Short", limit=shortTP, stop=shortSL)
-        label.new(bar_index, close, "SELL", color=color.red, style=label.style_label_up)
-
         // Desenare linie și etichetă pentru Stop Loss (Short)
         line.new(x1=bar_index, y1=shortSL, x2=bar_index + 10, y2=shortSL, color=#ff0000, width=1)
         label.new(x=bar_index + 6, y=shortSL, text="SL: " + str.tostring(shortSL, "#.####") + "; Position: " + str.tostring(RiskToTake/(shortSL-shortTP)), style=label.style_label_down, color=color.white, textcolor=#ff0000)
@@ -243,6 +239,13 @@ if (shortCondition and strategy.opentrades == 0)// and not shortActive)
         // Desenare linie și etichetă pentru Take Profit (Short)
         line.new(x1=bar_index, y1=shortTP, x2=bar_index + 10, y2=shortTP, color=color.green, width=1)
         label.new(x=bar_index + 2, y=shortTP, text="TP: " + str.tostring(shortTP, "#.##"), style=label.style_label_up, color=color.white, textcolor=color.green)
+
+
+        strategy.entry("Short", strategy.short, qty = risk / (shortSL - shortTP))
+        alert("SELL signal triggered for " + syminfo.tickerid, alert.freq_once_per_bar)
+        strategy.exit("Take Profit", from_entry="Short", limit=shortTP, stop=shortSL)
+        label.new(bar_index, close, "SELL", color=color.red, style=label.style_label_up)
+
 
     //shortActive := true
 
